@@ -11,6 +11,7 @@ from decision import DecisionPlan
 from generator import generate_json, write_json
 from interpreter import evaluate_named_rule
 from parser import DSLParseError, parse_program
+from rule_editor import RuleManagerFrame, UI_COLORS, configure_visual_style
 from validator import DSLValidationError, validate_context, validate_rules
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -57,6 +58,7 @@ class CampusEnergyApp:
         self.root = root
         self.scenarios = scenarios
         self.last_json: str | None = None
+        configure_visual_style(root)
         self.root.title("CampusEnergyDSL — simulador de decisiones")
         self.root.geometry("1060x720")
         self.root.minsize(800, 560)
@@ -65,9 +67,9 @@ class CampusEnergyApp:
         notebook.pack(fill="both", expand=True, padx=12, pady=12)
 
         demo_tab = ttk.Frame(notebook, padding=12)
-        editor_tab = ttk.Frame(notebook, padding=12)
         notebook.add(demo_tab, text="Demostración")
-        notebook.add(editor_tab, text="Reglas DSL")
+        editor_tab = ttk.Frame(notebook, padding=0)
+        notebook.add(editor_tab, text="Reglas")
         self.notebook = notebook
 
         toolbar = ttk.Frame(demo_tab)
@@ -85,22 +87,23 @@ class CampusEnergyApp:
         ttk.Button(toolbar, text="Evaluar", command=self.evaluate).pack(side="left")
         ttk.Button(toolbar, text="Guardar JSON…", command=self.save_plan).pack(side="left", padx=8)
 
-        self.output = tk.Text(demo_tab, wrap="word", font=("Consolas", 10), state="disabled")
+        self.output = tk.Text(
+            demo_tab,
+            wrap="word",
+            font=("Consolas", 10),
+            state="disabled",
+            background=UI_COLORS["input"],
+            foreground=UI_COLORS["text"],
+            insertbackground=UI_COLORS["text"],
+            selectbackground=UI_COLORS["blue"],
+            relief="flat",
+            padx=12,
+            pady=12,
+        )
         self.output.pack(fill="both", expand=True)
 
-        editor_controls = ttk.Frame(editor_tab)
-        editor_controls.pack(fill="x", pady=(0, 8))
-        ttk.Label(
-            editor_controls,
-            text="Puedes editar el catálogo y probarlo sin accionar equipos reales.",
-        ).pack(side="left")
-        ttk.Button(editor_controls, text="Guardar reglas", command=self.save_rules).pack(side="right")
-        ttk.Button(editor_controls, text="Recargar archivo", command=self.reload_rules).pack(
-            side="right", padx=8
-        )
-        self.rule_editor = tk.Text(editor_tab, wrap="none", font=("Consolas", 10), undo=True)
-        self.rule_editor.pack(fill="both", expand=True)
-        self.rule_editor.insert("1.0", load_rule_source())
+        self.rule_manager = RuleManagerFrame(editor_tab, scenarios, RULES_PATH)
+        self.rule_manager.pack(fill="both", expand=True)
 
         self.scenario_picker.bind("<<ComboboxSelected>>", lambda _event: self.show_scenario())
         self.show_scenario()
@@ -118,7 +121,7 @@ class CampusEnergyApp:
         name = self.scenario_name.get()
         try:
             scenario, plan = execute_scenario(
-                self.rule_editor.get("1.0", "end-1c"), name, self.scenarios
+                load_rule_source(), name, self.scenarios
             )
         except (DSLParseError, DSLValidationError, ValueError, OSError) as exc:
             self.last_json = None
@@ -159,23 +162,6 @@ class CampusEnergyApp:
             messagebox.showerror("No se pudo guardar", str(exc))
             return
         messagebox.showinfo("Guardado", f"Artefacto guardado en:\n{destination}")
-
-    def save_rules(self) -> None:
-        try:
-            RULES_PATH.write_text(self.rule_editor.get("1.0", "end-1c"), encoding="utf-8")
-        except OSError as exc:
-            messagebox.showerror("No se pudieron guardar las reglas", str(exc))
-            return
-        messagebox.showinfo("Reglas guardadas", f"Catálogo actualizado:\n{RULES_PATH}")
-
-    def reload_rules(self) -> None:
-        try:
-            source = load_rule_source()
-        except OSError as exc:
-            messagebox.showerror("No se pudo recargar", str(exc))
-            return
-        self.rule_editor.delete("1.0", "end")
-        self.rule_editor.insert("1.0", source)
 
     def _show_output(self, text: str) -> None:
         self.output.configure(state="normal")

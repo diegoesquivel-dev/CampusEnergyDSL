@@ -5,10 +5,12 @@ from pathlib import Path
 
 import pytest
 
+from astNodes import Comparison
 from generator import generate_json, write_json
 from interpreter import evaluate_named_rule
 from main import execute_scenario, load_scenarios, load_rule_source
 from parser import DSLParseError, parse_program
+from rule_editor import build_rule, editable_groups, rule_slug, serialize_program
 from validator import DSLValidationError, validate_rules
 
 
@@ -152,3 +154,48 @@ def test_decision_json_has_documented_shape(rules, tmp_path: Path) -> None:
     assert artifact["planDecision"]["estadoResolucion"] == "PERMITIDA"
     destination = write_json(context, plan, tmp_path / "decision.json")
     assert json.loads(destination.read_text(encoding="utf-8")) == artifact
+
+
+def test_visual_block_roundtrip_preserves_default_rule_behavior(source: str) -> None:
+    original_rules = parse_program(source)
+    scenarios = load_scenarios()
+    for original in original_rules:
+        rebuilt = build_rule(
+            original.name,
+            original.action.space_code,
+            editable_groups(original),
+            original.action.command,
+            original.action.equipment_code,
+        )
+        restored = parse_program(serialize_program([rebuilt]))
+        validate_rules(restored)
+        for scenario in scenarios.values():
+            context = scenario["contexto"]
+            if context["codEspacio"] != original.action.space_code:
+                continue
+            before = evaluate_named_rule([original], original.name, context)
+            after = evaluate_named_rule(restored, original.name, context)
+            assert (before is None) == (after is None)
+            if before is not None and after is not None:
+                assert before.resolution == after.resolution
+                assert before.proposed_action == after.proposed_action
+
+
+def test_visual_editor_can_create_a_new_persistable_rule() -> None:
+    name = rule_slug("Ahorro suave para aula")
+    rule = build_rule(
+        name,
+        "AULA302",
+        [
+            [
+                Comparison("ocupacion", "=", "VACIO"),
+                Comparison("tiempoVacio", ">=", 20),
+            ]
+        ],
+        "modoAhorro",
+        "AIRE02",
+    )
+    serialized = parse_program(serialize_program([rule]))
+    validate_rules(serialized)
+    assert serialized[0].name == "ahorro_suave_para_aula"
+    assert serialized[0].action.command == "modoAhorro"

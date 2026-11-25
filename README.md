@@ -24,10 +24,20 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-La ventana permite elegir uno de los diez escenarios, ejecutar la regla en el
-contexto de demostración, revisar el resultado y guardar el JSON. En **Reglas DSL**
-se puede editar el catálogo; los cambios se prueban al pulsar **Evaluar** y se
-pueden persistir con **Guardar reglas**.
+La ventana tiene dos secciones:
+
+- **Demostración:** selecciona un escenario, ejecuta sus reglas y revisa o guarda
+  el plan JSON.
+- **Reglas:** consulta las políticas guardadas como tarjetas, busca por nombre o
+  espacio y prueba una regla con un escenario compatible. Usa **Crear regla** o
+  **Editar bloques** para seleccionar el espacio, añadir o quitar condiciones
+  visuales, elegir conectores Y/O y seleccionar la acción y el equipo. **Guardar
+  regla** valida y persiste los cambios en el catálogo DSL; no es necesario
+  escribir ni ver código.
+
+El catálogo continúa almacenado como `reglas_campus.dsl` y pasa por el mismo
+parser y validador del motor. El editor presenta variables y valores con nombres
+legibles, organiza condiciones en grupos Y/O y muestra por separado la acción.
 
 Si PowerShell impide activar el entorno virtual, también puedes ejecutar los
 comandos con el intérprete del entorno directamente:
@@ -77,6 +87,8 @@ reglas_campus.dsl
   `REQUIERE AUTORIZACION`.
 - `generator.py`: serialización del plan con contexto y evidencia.
 - `main.py`: interfaz gráfica y opciones de terminal.
+- `rule_editor.py`: editor visual de políticas, consulta del catálogo y persistencia
+  de reglas creadas desde la interfaz.
 - `escenarios.json`: diez contextos de demostración reproducibles.
 - `tests/testPipeline.py`: pruebas del pipeline y escenarios de seguridad.
 
