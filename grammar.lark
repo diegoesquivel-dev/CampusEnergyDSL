@@ -1,0 +1,26 @@
+start: rule*
+
+rule: "REGLA" NAME ":" "CUANDO" condition "ENTONCES" action ";"
+
+?condition: disjunction
+?disjunction: conjunction ("O" conjunction)*  -> disjunction
+?conjunction: factor ("Y" factor)*            -> conjunction
+?factor: "NO" factor                          -> negation
+       | "(" condition ")"
+       | comparison
+
+comparison: NAME OP literal
+?literal: STRING                               -> string
+        | NUMBER                               -> number
+action: ACTION "(" NAME "." NAME ")"
+
+OP: ">=" | "<=" | "!=" | "=" | ">" | "<"
+ACTION: "apagar" | "modoAhorro" | "recomendarApagado" | "emitirAlerta"
+NAME: /[A-Za-z_][A-Za-z0-9_]*/
+STRING: /"[^"\n]*"/
+NUMBER: /[0-9]+(\.[0-9]+)?/
+
+COMMENT: /#[^\n]*/
+%import common.WS
+%ignore WS
+%ignore COMMENT

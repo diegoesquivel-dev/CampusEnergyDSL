@@ -1,0 +1,162 @@
+{
+  "ahorroBasico": {
+    "regla": "ahorroBasico",
+    "descripcion": "Aula vacía durante 18 minutos; sensor actualizado y sin clase.",
+    "contexto": {
+      "codEspacio": "AULA302",
+      "ocupacion": "VACIO",
+      "tiempoVacio": 18,
+      "actividadActual": "NINGUNA",
+      "criticidad": "BAJA",
+      "frescura": "ACTUALIZADO",
+      "bloqueTarifa": "MEDIA",
+      "demandaNeta": 7.2,
+      "eventoProveedor": "NORMAL",
+      "restriccionEquipo": "LIBRE"
+    }
+  },
+  "ahorroPasillo": {
+    "regla": "ahorroPasillo",
+    "descripcion": "Pasillo vacío durante 25 minutos; iluminación en zona de baja criticidad.",
+    "contexto": {
+      "codEspacio": "PASILLOB1",
+      "ocupacion": "VACIO",
+      "tiempoVacio": 25,
+      "actividadActual": "NINGUNA",
+      "criticidad": "BAJA",
+      "frescura": "ACTUALIZADO",
+      "bloqueTarifa": "VALLE",
+      "demandaNeta": 4.0,
+      "eventoProveedor": "NORMAL",
+      "restriccionEquipo": "LIBRE"
+    }
+  },
+  "revisionLaboratorio": {
+    "regla": "revisionLaboratorio",
+    "descripcion": "Laboratorio sin actividad durante 35 minutos; requiere autorización responsable.",
+    "contexto": {
+      "codEspacio": "LABFISICA",
+      "ocupacion": "VACIO",
+      "tiempoVacio": 35,
+      "actividadActual": "NINGUNA",
+      "criticidad": "ALTA",
+      "frescura": "ACTUALIZADO",
+      "bloqueTarifa": "MEDIA",
+      "demandaNeta": 12.0,
+      "eventoProveedor": "NORMAL",
+      "restriccionEquipo": "AUTORIZABLE"
+    }
+  },
+  "alertaTelemetria": {
+    "regla": "alertaTelemetria",
+    "descripcion": "El sensor del laboratorio informa telemetría obsoleta; no se realiza un corte.",
+    "contexto": {
+      "codEspacio": "LABQUIMICA",
+      "ocupacion": "OCUPADO",
+      "tiempoVacio": 0,
+      "actividadActual": "EXPERIMENTO",
+      "criticidad": "ALTA",
+      "frescura": "OBSOLETO",
+      "bloqueTarifa": "PUNTA",
+      "demandaNeta": 15.0,
+      "eventoProveedor": "NORMAL",
+      "restriccionEquipo": "LIBRE"
+    }
+  },
+  "ahorroHoraPunta": {
+    "regla": "ahorroHoraPunta",
+    "descripcion": "Aula vacía en hora punta con demanda neta superior a 10 kW.",
+    "contexto": {
+      "codEspacio": "AULA302",
+      "ocupacion": "VACIO",
+      "tiempoVacio": 12,
+      "actividadActual": "NINGUNA",
+      "criticidad": "BAJA",
+      "frescura": "ACTUALIZADO",
+      "bloqueTarifa": "PUNTA",
+      "demandaNeta": 14.0,
+      "eventoProveedor": "NORMAL",
+      "restriccionEquipo": "LIBRE"
+    }
+  },
+  "atenuaSolarBaja": {
+    "regla": "atenuaSolarBaja",
+    "descripcion": "Pasillo vacío con demanda neta elevada y tarifa punta.",
+    "contexto": {
+      "codEspacio": "PASILLOB1",
+      "ocupacion": "VACIO",
+      "tiempoVacio": 8,
+      "actividadActual": "NINGUNA",
+      "criticidad": "BAJA",
+      "frescura": "ACTUALIZADO",
+      "bloqueTarifa": "PUNTA",
+      "demandaNeta": 8.5,
+      "eventoProveedor": "NORMAL",
+      "restriccionEquipo": "LIBRE"
+    }
+  },
+  "excedenteSolarConfort": {
+    "regla": "excedenteSolarConfort",
+    "descripcion": "Demanda neta baja en horario valle; se genera una alerta informativa.",
+    "contexto": {
+      "codEspacio": "AULA302",
+      "ocupacion": "OCUPADO",
+      "tiempoVacio": 0,
+      "actividadActual": "CLASE",
+      "criticidad": "BAJA",
+      "frescura": "ACTUALIZADO",
+      "bloqueTarifa": "VALLE",
+      "demandaNeta": 1.5,
+      "eventoProveedor": "NORMAL",
+      "restriccionEquipo": "LIBRE"
+    }
+  },
+  "respuestaEventoProveedor": {
+    "regla": "respuestaEventoProveedor",
+    "descripcion": "Evento de reducción del proveedor con demanda neta elevada en un pasillo.",
+    "contexto": {
+      "codEspacio": "PASILLOB1",
+      "ocupacion": "OCUPADO",
+      "tiempoVacio": 0,
+      "actividadActual": "NINGUNA",
+      "criticidad": "BAJA",
+      "frescura": "ACTUALIZADO",
+      "bloqueTarifa": "PUNTA",
+      "demandaNeta": 6.0,
+      "eventoProveedor": "REDUCCION",
+      "restriccionEquipo": "LIBRE"
+    }
+  },
+  "reduccionLaboratorioEvento": {
+    "regla": "reduccionLaboratorioEvento",
+    "descripcion": "Evento del proveedor en hora punta; laboratorio requiere aprobación humana.",
+    "contexto": {
+      "codEspacio": "LABFISICA",
+      "ocupacion": "VACIO",
+      "tiempoVacio": 40,
+      "actividadActual": "NINGUNA",
+      "criticidad": "ALTA",
+      "frescura": "ACTUALIZADO",
+      "bloqueTarifa": "PUNTA",
+      "demandaNeta": 11.0,
+      "eventoProveedor": "REDUCCION",
+      "restriccionEquipo": "AUTORIZABLE"
+    }
+  },
+  "alertaCriticaProveedor": {
+    "regla": "alertaCriticaProveedor",
+    "descripcion": "Evento del proveedor en el centro de datos; se informa sin intervenir el servidor.",
+    "contexto": {
+      "codEspacio": "DATACENTER01",
+      "ocupacion": "OCUPADO",
+      "tiempoVacio": 0,
+      "actividadActual": "NINGUNA",
+      "criticidad": "EXTREMA",
+      "frescura": "ACTUALIZADO",
+      "bloqueTarifa": "PUNTA",
+      "demandaNeta": 25.0,
+      "eventoProveedor": "REDUCCION",
+      "restriccionEquipo": "DURA"
+    }
+  }
+}
