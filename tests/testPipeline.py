@@ -10,8 +10,8 @@ from generator import generate_json, write_json
 from interpreter import evaluate_named_rule
 from main import execute_scenario, load_scenarios, load_rule_source
 from parser import DSLParseError, parse_program
-from rule_editor import build_rule, editable_groups, rule_slug, serialize_program
-from validator import DSLValidationError, validate_rules
+from rule_editor import ACTIVATOR_OPTIONS, build_rule, editable_groups, rule_slug, serialize_program
+from validator import ALL_ATTRIBUTES, DSLValidationError, validate_rules
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +43,22 @@ def test_catalog_parses_and_validates_all_ten_rules(rules) -> None:
         "reduccionLaboratorioEvento",
         "alertaCriticaProveedor",
     }
+
+
+def test_occupancy_time_thresholds_and_context_use_seconds(rules) -> None:
+    basic = next(rule for rule in rules if rule.name == "ahorroBasico")
+    time_condition = next(
+        condition
+        for condition in editable_groups(basic)[0]
+        if isinstance(condition, Comparison) and condition.attribute == "tiempoVacio"
+    )
+    assert time_condition.value == 900
+    assert load_scenarios()["ahorroBasico"]["contexto"]["tiempoVacio"] == 1080
+
+
+def test_visual_activator_picker_covers_all_non_scope_attributes() -> None:
+    selectable = {attribute for attribute, _value, _operator in ACTIVATOR_OPTIONS.values()}
+    assert selectable == ALL_ATTRIBUTES - {"codEspacio"}
 
 
 def test_solar_and_supplier_rules_match_their_demo_contexts(source: str) -> None:

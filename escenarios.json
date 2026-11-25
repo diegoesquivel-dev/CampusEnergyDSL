@@ -5,7 +5,7 @@
     "contexto": {
       "codEspacio": "AULA302",
       "ocupacion": "VACIO",
-      "tiempoVacio": 18,
+      "tiempoVacio": 1080,
       "actividadActual": "NINGUNA",
       "criticidad": "BAJA",
       "frescura": "ACTUALIZADO",
@@ -21,7 +21,7 @@
     "contexto": {
       "codEspacio": "PASILLOB1",
       "ocupacion": "VACIO",
-      "tiempoVacio": 25,
+      "tiempoVacio": 1500,
       "actividadActual": "NINGUNA",
       "criticidad": "BAJA",
       "frescura": "ACTUALIZADO",
@@ -37,7 +37,7 @@
     "contexto": {
       "codEspacio": "LABFISICA",
       "ocupacion": "VACIO",
-      "tiempoVacio": 35,
+      "tiempoVacio": 2100,
       "actividadActual": "NINGUNA",
       "criticidad": "ALTA",
       "frescura": "ACTUALIZADO",
@@ -69,7 +69,7 @@
     "contexto": {
       "codEspacio": "AULA302",
       "ocupacion": "VACIO",
-      "tiempoVacio": 12,
+      "tiempoVacio": 720,
       "actividadActual": "NINGUNA",
       "criticidad": "BAJA",
       "frescura": "ACTUALIZADO",
@@ -85,7 +85,7 @@
     "contexto": {
       "codEspacio": "PASILLOB1",
       "ocupacion": "VACIO",
-      "tiempoVacio": 8,
+      "tiempoVacio": 480,
       "actividadActual": "NINGUNA",
       "criticidad": "BAJA",
       "frescura": "ACTUALIZADO",
@@ -133,7 +133,7 @@
     "contexto": {
       "codEspacio": "LABFISICA",
       "ocupacion": "VACIO",
-      "tiempoVacio": 40,
+      "tiempoVacio": 2400,
       "actividadActual": "NINGUNA",
       "criticidad": "ALTA",
       "frescura": "ACTUALIZADO",

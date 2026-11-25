@@ -5,7 +5,7 @@
 REGLA ahorroBasico:
 CUANDO codEspacio = "AULA302"
 Y ocupacion = "VACIO"
-Y tiempoVacio >= 15
+Y tiempoVacio >= 900
 Y actividadActual = "NINGUNA"
 Y criticidad = "BAJA"
 Y frescura = "ACTUALIZADO"
@@ -15,7 +15,7 @@ ENTONCES apagar(AULA302.AIRE02);
 REGLA ahorroPasillo:
 CUANDO codEspacio = "PASILLOB1"
 Y ocupacion = "VACIO"
-Y tiempoVacio >= 20
+Y tiempoVacio >= 1200
 Y (actividadActual = "NINGUNA" O criticidad = "BAJA")
 Y frescura = "ACTUALIZADO"
 ENTONCES modoAhorro(PASILLOB1.LUM01);
@@ -24,7 +24,7 @@ ENTONCES modoAhorro(PASILLOB1.LUM01);
 REGLA revisionLaboratorio:
 CUANDO codEspacio = "LABFISICA"
 Y ocupacion = "VACIO"
-Y tiempoVacio >= 30
+Y tiempoVacio >= 1800
 Y actividadActual = "NINGUNA"
 Y criticidad = "ALTA"
 Y frescura = "ACTUALIZADO"
@@ -42,7 +42,7 @@ CUANDO codEspacio = "AULA302"
 Y bloqueTarifa = "PUNTA"
 Y demandaNeta > 10
 Y ocupacion = "VACIO"
-Y tiempoVacio >= 10
+Y tiempoVacio >= 600
 Y actividadActual = "NINGUNA"
 Y frescura = "ACTUALIZADO"
 ENTONCES apagar(AULA302.AIRE02);

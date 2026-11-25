@@ -28,20 +28,20 @@ class DecisionPlan:
 def resolve_decision(rule: Rule, context: dict[str, object]) -> DecisionPlan:
     action = rule.action.command
     target = rule.action.target
-    evidence = [
-        f"{key} = {context[key]}"
-        for key in (
-            "codEspacio",
-            "ocupacion",
-            "tiempoVacio",
-            "actividadActual",
-            "criticidad",
-            "frescura",
-            "bloqueTarifa",
-            "demandaNeta",
-            "eventoProveedor",
-        )
-    ]
+    evidence = []
+    for key in (
+        "codEspacio",
+        "ocupacion",
+        "tiempoVacio",
+        "actividadActual",
+        "criticidad",
+        "frescura",
+        "bloqueTarifa",
+        "demandaNeta",
+        "eventoProveedor",
+    ):
+        unit = " segundos" if key == "tiempoVacio" else " kW" if key == "demandaNeta" else ""
+        evidence.append(f"{key} = {context[key]}{unit}")
 
     if action not in {"apagar", "modoAhorro", "recomendarApagado"}:
         evidence.append("La acción es informativa; no solicita cambios físicos.")

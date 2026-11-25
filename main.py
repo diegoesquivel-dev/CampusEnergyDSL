@@ -11,7 +11,14 @@ from decision import DecisionPlan
 from generator import generate_json, write_json
 from interpreter import evaluate_named_rule
 from parser import DSLParseError, parse_program
-from rule_editor import RuleManagerFrame, UI_COLORS, configure_visual_style
+from rule_editor import (
+    RuleManagerFrame,
+    UI_COLORS,
+    _RuleEditorDialog,
+    configure_visual_style,
+    render_rule_blocks,
+    rule_title,
+)
 from validator import DSLValidationError, validate_context, validate_rules
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -66,11 +73,27 @@ class CampusEnergyApp:
         notebook = ttk.Notebook(root)
         notebook.pack(fill="both", expand=True, padx=12, pady=12)
 
+        create_tab = ttk.Frame(notebook, padding=0)
+        rules_tab = ttk.Frame(notebook, padding=0)
         demo_tab = ttk.Frame(notebook, padding=12)
+        notebook.add(create_tab, text="Crear")
+        notebook.add(rules_tab, text="Reglas")
         notebook.add(demo_tab, text="Demostración")
-        editor_tab = ttk.Frame(notebook, padding=0)
-        notebook.add(editor_tab, text="Reglas")
         self.notebook = notebook
+
+        self.rule_manager = RuleManagerFrame(
+            rules_tab,
+            scenarios,
+            RULES_PATH,
+            on_create=lambda: notebook.select(create_tab),
+        )
+        self.rule_manager.pack(fill="both", expand=True)
+        self.rule_creator = _RuleEditorDialog(
+            self.rule_manager,
+            None,
+            self.rule_manager._save_rule,
+            embedded_parent=create_tab,
+        )
 
         toolbar = ttk.Frame(demo_tab)
         toolbar.pack(fill="x", pady=(0, 10))
@@ -84,64 +107,135 @@ class CampusEnergyApp:
             width=34,
         )
         self.scenario_picker.pack(side="left", padx=(8, 14))
-        ttk.Button(toolbar, text="Evaluar", command=self.evaluate).pack(side="left")
-        ttk.Button(toolbar, text="Guardar JSON…", command=self.save_plan).pack(side="left", padx=8)
-
-        self.output = tk.Text(
-            demo_tab,
-            wrap="word",
-            font=("Consolas", 10),
-            state="disabled",
-            background=UI_COLORS["input"],
-            foreground=UI_COLORS["text"],
-            insertbackground=UI_COLORS["text"],
-            selectbackground=UI_COLORS["blue"],
-            relief="flat",
-            padx=12,
-            pady=12,
+        ttk.Button(
+            toolbar,
+            text="Evaluar bloques",
+            command=self.evaluate,
+            style="Primary.TButton",
+        ).pack(side="left")
+        ttk.Button(toolbar, text="Ver artefacto JSON", command=self.show_json).pack(
+            side="left", padx=8
         )
-        self.output.pack(fill="both", expand=True)
+        ttk.Button(toolbar, text="Guardar JSON…", command=self.save_plan).pack(side="left")
 
-        self.rule_manager = RuleManagerFrame(editor_tab, scenarios, RULES_PATH)
-        self.rule_manager.pack(fill="both", expand=True)
+        scenario_frame = ttk.Frame(demo_tab)
+        scenario_frame.pack(fill="x", pady=(0, 10))
+        self.demo_rule_title = ttk.Label(
+            scenario_frame,
+            text="",
+            font=("Segoe UI", 13, "bold"),
+        )
+        self.demo_rule_title.pack(anchor="w", pady=(0, 3))
+        self.scenario_description = ttk.Label(
+            scenario_frame,
+            text="",
+            wraplength=950,
+        )
+        self.scenario_description.pack(anchor="w")
+        self.demo_result = ttk.Label(
+            scenario_frame,
+            text="Selecciona «Evaluar bloques» para ejecutar la simulación.",
+            font=("Segoe UI", 10, "bold"),
+        )
+        self.demo_result.pack(anchor="w", pady=(5, 0))
+
+        self.demo_blocks = ttk.Frame(demo_tab)
+        self.demo_blocks.pack(fill="both", expand=True)
 
         self.scenario_picker.bind("<<ComboboxSelected>>", lambda _event: self.show_scenario())
         self.show_scenario()
-        self.evaluate()
 
     def show_scenario(self) -> None:
         scenario = self.scenarios[self.scenario_name.get()]
-        self._show_output(
-            f"{scenario.get('descripcion', '')}\n\n"
-            "El motor trabaja en modo simulación: no se conecta a sensores ni a actuadores.\n"
-            "Pulsa «Evaluar» para ejecutar el pipeline y generar el plan JSON."
+        self.scenario_description.configure(
+            text=f"{scenario.get('descripcion', '')}  ·  Modo de demostración: sin conexión "
+            "a sensores ni actuadores reales."
         )
+        self.last_json = None
+        self.demo_result.configure(
+            text="Selecciona «Evaluar bloques» para ejecutar la simulación.",
+            foreground=UI_COLORS["muted"],
+        )
+        try:
+            rules = parse_program(load_rule_source())
+            validate_rules(rules)
+            rule_name = scenario.get("regla")
+            rule = next((item for item in rules if item.name == rule_name), None)
+            if rule is None:
+                raise ValueError(f"No se encontró la regla del escenario '{rule_name}'.")
+            self.demo_rule_title.configure(text=rule_title(rule.name))
+            render_rule_blocks(self.demo_blocks, rule)
+        except (DSLParseError, DSLValidationError, ValueError, OSError) as exc:
+            self._show_demo_error(str(exc))
 
     def evaluate(self) -> None:
         name = self.scenario_name.get()
         try:
-            scenario, plan = execute_scenario(
-                load_rule_source(), name, self.scenarios
-            )
+            source = load_rule_source()
+            rules = parse_program(source)
+            validate_rules(rules)
+            scenario, plan = execute_scenario(source, name, self.scenarios)
+            rule_name = scenario.get("regla")
+            rule = next((item for item in rules if item.name == rule_name), None)
+            if rule is None:
+                raise ValueError(f"No se encontró la regla del escenario '{rule_name}'.")
         except (DSLParseError, DSLValidationError, ValueError, OSError) as exc:
             self.last_json = None
-            self._show_output(f"Error al evaluar:\n{exc}")
+            self._show_demo_error(f"Error al evaluar: {exc}")
             return
 
-        description = str(scenario.get("descripcion", ""))
         if plan is None:
             self.last_json = None
-            self._show_output(
-                f"{description}\n\nLa condición de la regla no se cumple en este contexto.\n"
-                "No se genera una orden ni se accionan equipos."
+            render_rule_blocks(
+                self.demo_blocks,
+                rule,
+                "No coincide: las condiciones no se cumplen en este escenario.",
+            )
+            self.demo_result.configure(
+                text="No coincide: no se propone una acción.",
+                foreground=UI_COLORS["orange"],
             )
             return
 
         self.last_json = generate_json(scenario["contexto"], plan)  # type: ignore[arg-type]
-        self._show_output(
-            f"{description}\n\nResultado: {plan.resolution}\n\n"
-            f"Artefacto DecisionPlan:\n{self.last_json}"
+        render_rule_blocks(
+            self.demo_blocks,
+            rule,
+            f"Resultado: {plan.resolution}",
         )
+        result_color = {
+            "PERMITIDA": UI_COLORS["green"],
+            "BLOQUEADA": UI_COLORS["red"],
+            "REQUIERE AUTORIZACION": UI_COLORS["orange"],
+        }.get(plan.resolution, UI_COLORS["muted"])
+        self.demo_result.configure(
+            text=f"Resultado: {plan.resolution}",
+            foreground=result_color,
+        )
+
+    def show_json(self) -> None:
+        if self.last_json is None:
+            messagebox.showinfo(
+                "Sin resultado",
+                "Primero evalúa el escenario para generar el artefacto JSON.",
+                parent=self.root,
+            )
+            return
+        window = tk.Toplevel(self.root)
+        window.title("Artefacto de decisión JSON")
+        window.geometry("760x600")
+        text = tk.Text(
+            window,
+            wrap="none",
+            font=("Consolas", 10),
+            background=UI_COLORS["input"],
+            foreground=UI_COLORS["text"],
+            padx=12,
+            pady=12,
+        )
+        text.pack(fill="both", expand=True)
+        text.insert("1.0", self.last_json)
+        text.configure(state="disabled")
 
     def save_plan(self) -> None:
         if self.last_json is None:
@@ -163,11 +257,16 @@ class CampusEnergyApp:
             return
         messagebox.showinfo("Guardado", f"Artefacto guardado en:\n{destination}")
 
-    def _show_output(self, text: str) -> None:
-        self.output.configure(state="normal")
-        self.output.delete("1.0", "end")
-        self.output.insert("1.0", text)
-        self.output.configure(state="disabled")
+    def _show_demo_error(self, text: str) -> None:
+        for child in self.demo_blocks.winfo_children():
+            child.destroy()
+        ttk.Label(
+            self.demo_blocks,
+            text=text,
+            foreground=UI_COLORS["red"],
+            wraplength=900,
+        ).pack(anchor="w", pady=12)
+        self.demo_result.configure(text="No se pudo mostrar la regla.", foreground=UI_COLORS["red"])
 
 
 def _run_cli(args: argparse.Namespace) -> int:

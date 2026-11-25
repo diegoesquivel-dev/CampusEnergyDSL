@@ -24,20 +24,23 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-La ventana tiene dos secciones:
+La ventana presenta primero **Crear**, después **Reglas** y al final
+**Demostración**:
 
-- **Demostración:** selecciona un escenario, ejecuta sus reglas y revisa o guarda
-  el plan JSON.
-- **Reglas:** consulta las políticas guardadas como tarjetas, busca por nombre o
-  espacio y prueba una regla con un escenario compatible. Usa **Crear regla** o
-  **Editar bloques** para seleccionar el espacio, añadir o quitar condiciones
-  visuales, elegir conectores Y/O y seleccionar la acción y el equipo. **Guardar
-  regla** valida y persiste los cambios en el catálogo DSL; no es necesario
-  escribir ni ver código.
+- **Crear:** elige un espacio, las entradas/activadores disponibles, sus condiciones
+  y la acción objetivo. Las condiciones aparecen en bloques verdes, los operadores
+  Y/O en separadores grises y las fuentes de datos en bloques azules. Al seleccionar
+  ocupación **Vacía**, aparece el campo requerido para indicar la duración en
+  **segundos**. Un indicador valida la regla y sus restricciones de seguridad
+  mientras la editas; **Guardar regla** solo se habilita si es válida.
+- **Reglas:** consulta y busca las reglas guardadas, sus activadores, condiciones
+  y acciones; también permite editarlas o probarlas con un escenario compatible.
+- **Demostración:** muestra la política como bloques, ejecuta el escenario y
+  presenta el resultado. El artefacto JSON se abre aparte cuando se solicita.
 
-El catálogo continúa almacenado como `reglas_campus.dsl` y pasa por el mismo
-parser y validador del motor. El editor presenta variables y valores con nombres
-legibles, organiza condiciones en grupos Y/O y muestra por separado la acción.
+El catálogo sigue guardándose como `reglas_campus.dsl` y pasa por el parser y el
+validador existentes. Las variables aparecen con nombres legibles; `tiempoVacio`
+se expresa en segundos (por ejemplo, 900 segundos equivalen a 15 minutos).
 
 Si PowerShell impide activar el entorno virtual, también puedes ejecutar los
 comandos con el intérprete del entorno directamente:
@@ -100,7 +103,7 @@ Las reglas pueden consultar los nueve atributos del dominio:
 | --- | --- |
 | `codEspacio` | `AULA302`, `PASILLOB1`, `LABFISICA`, `LABQUIMICA`, `DATACENTER01` |
 | `ocupacion` | `VACIO`, `OCUPADO` |
-| `tiempoVacio` | Entero mayor o igual a cero |
+| `tiempoVacio` | Duración en segundos, entero mayor o igual a cero |
 | `actividadActual` | `NINGUNA`, `CLASE`, `EXPERIMENTO` |
 | `criticidad` | `BAJA`, `MEDIA`, `ALTA`, `EXTREMA` |
 | `frescura` | `ACTUALIZADO`, `OBSOLETO`, `DESCONECTADO` |
@@ -114,7 +117,7 @@ Ejemplo:
 REGLA ahorroBasico:
 CUANDO codEspacio = "AULA302"
 Y ocupacion = "VACIO"
-Y tiempoVacio >= 15
+Y tiempoVacio >= 900
 Y actividadActual = "NINGUNA"
 Y criticidad = "BAJA"
 Y frescura = "ACTUALIZADO"

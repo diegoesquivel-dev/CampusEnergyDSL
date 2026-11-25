@@ -23,7 +23,6 @@ from validator import (
     ENUM_VALUES,
     EQUIPMENT_BY_SPACE,
     NUMERIC_ATTRIBUTES,
-    SPACE_CODES,
     DSLValidationError,
     validate_rules,
 )
@@ -48,6 +47,9 @@ UI_COLORS = {
     "green": "#35a853",
     "red": "#dc3d3d",
     "orange": "#f0a52b",
+    "activator": "#214868",
+    "condition": "#244e3a",
+    "separator": "#49515c",
 }
 EQUIPMENT_LABELS = {
     ("AULA302", "AIRE02"): "Aire acondicionado 02",
@@ -58,13 +60,34 @@ EQUIPMENT_LABELS = {
 }
 ATTRIBUTE_LABELS = {
     "ocupacion": "Ocupación del espacio",
-    "tiempoVacio": "Minutos sin ocupación",
+    "tiempoVacio": "Tiempo vacío",
     "actividadActual": "Actividad actual",
     "criticidad": "Nivel de criticidad",
     "frescura": "Estado del sensor",
     "bloqueTarifa": "Horario de tarifa",
-    "demandaNeta": "Demanda neta (kW)",
+    "demandaNeta": "Demanda neta",
     "eventoProveedor": "Evento del proveedor",
+}
+ACTIVATOR_LABELS = {
+    "codEspacio": "Espacio del campus",
+    "ocupacion": "Sensor de ocupación",
+    "tiempoVacio": "Sensor de ocupación",
+    "actividadActual": "Agenda académica",
+    "criticidad": "Catálogo de espacios",
+    "frescura": "Sensor IoT",
+    "bloqueTarifa": "Tarifa eléctrica",
+    "demandaNeta": "Medidor de energía y generación",
+    "eventoProveedor": "Evento del proveedor",
+}
+ACTIVATOR_OPTIONS = {
+    "Sensor de ocupación": ("ocupacion", "VACIO", "="),
+    "Sensor IoT / telemetría": ("frescura", "ACTUALIZADO", "="),
+    "Agenda académica": ("actividadActual", "NINGUNA", "="),
+    "Criticidad del espacio": ("criticidad", "BAJA", "="),
+    "Horario de tarifa": ("bloqueTarifa", "PUNTA", "="),
+    "Demanda neta de energía": ("demandaNeta", 10, ">"),
+    "Evento del proveedor": ("eventoProveedor", "REDUCCION", "="),
+    "Duración de ocupación": ("tiempoVacio", 900, ">="),
 }
 VALUE_LABELS = {
     "VACIO": "Vacío",
@@ -319,16 +342,177 @@ def serialize_program(rules: list[Rule]) -> str:
     )
 
 
+def condition_label(condition: Condition) -> str:
+    negated = isinstance(condition, Negation)
+    comparison = condition.operand if negated else condition
+    if not isinstance(comparison, Comparison):
+        return "Condición lógica"
+    attribute = ATTRIBUTE_LABELS.get(comparison.attribute, comparison.attribute)
+    value = comparison.value
+    if isinstance(value, str):
+        value = VALUE_LABELS.get(value, SPACE_LABELS.get(value, value))
+    operator = {
+        "=": "es",
+        "!=": "no es",
+        ">": "mayor que",
+        "<": "menor que",
+        ">=": "al menos",
+        "<=": "como máximo",
+    }.get(comparison.operator, comparison.operator)
+    unit = " segundos" if comparison.attribute == "tiempoVacio" else (
+        " kW" if comparison.attribute == "demandaNeta" else ""
+    )
+    prefix = "NO " if negated else ""
+    return f"{prefix}{attribute} {operator} {value}{unit}"
+
+
+def render_rule_blocks(
+    parent: tk.Misc,
+    rule: Rule,
+    result: str | None = None,
+) -> None:
+    for child in parent.winfo_children():
+        child.destroy()
+
+    try:
+        groups = editable_groups(rule)
+    except ValueError as exc:
+        ttk.Label(parent, text=str(exc), foreground=UI_COLORS["red"]).pack(anchor="w")
+        return
+
+    activators = [("Espacio", rule.action.space_code)]
+    seen_sources = {"codEspacio"}
+    for group in groups:
+        for condition in group:
+            comparison = condition.operand if isinstance(condition, Negation) else condition
+            if not isinstance(comparison, Comparison):
+                continue
+            source = ACTIVATOR_LABELS.get(comparison.attribute)
+            if source and source not in seen_sources:
+                activators.append((source, ""))
+                seen_sources.add(source)
+
+    ttk.Label(
+        parent,
+        text="ACTIVADORES / ENTRADAS",
+        font=("Segoe UI", 10, "bold"),
+    ).pack(anchor="w", pady=(3, 5))
+    activation_row = ttk.Frame(parent)
+    activation_row.pack(fill="x", pady=(0, 10))
+    for source, value in activators:
+        display = SPACE_LABELS.get(value, "")
+        chip = tk.Label(
+            activation_row,
+            text=f"▸ {source}: {display}" if display else f"▸ {source}",
+            background=UI_COLORS["activator"],
+            foreground="#e7f4ff",
+            padx=10,
+            pady=6,
+            font=("Segoe UI", 9, "bold"),
+        )
+        chip.pack(side="left", padx=(0, 6), pady=2)
+
+    ttk.Label(
+        parent,
+        text="CONDICIONES",
+        font=("Segoe UI", 10, "bold"),
+    ).pack(anchor="w", pady=(0, 5))
+    conditions = ttk.Frame(parent)
+    conditions.pack(fill="x")
+    for group_index, group in enumerate(groups):
+        if group_index:
+            separator = tk.Label(
+                conditions,
+                text="O  ·  BASTA CON UN GRUPO",
+                background=UI_COLORS["separator"],
+                foreground="#ffffff",
+                padx=8,
+                pady=4,
+                font=("Segoe UI", 8, "bold"),
+            )
+            separator.pack(anchor="w", fill="x", pady=4)
+        if not group:
+            card = tk.Label(
+                conditions,
+                text="Sin condiciones adicionales",
+                background=UI_COLORS["condition"],
+                foreground="#f0fff4",
+                padx=10,
+                pady=7,
+                anchor="w",
+            )
+            card.pack(anchor="w", fill="x", pady=2)
+        for condition_index, condition in enumerate(group):
+            if condition_index:
+                separator = tk.Label(
+                    conditions,
+                    text="Y",
+                    background=UI_COLORS["separator"],
+                    foreground="#ffffff",
+                    padx=8,
+                    pady=2,
+                    font=("Segoe UI", 8, "bold"),
+                )
+                separator.pack(anchor="w", pady=2)
+            block = tk.Label(
+                conditions,
+                text=f"  {condition_label(condition)}",
+                background=UI_COLORS["condition"],
+                foreground="#f0fff4",
+                padx=10,
+                pady=7,
+                anchor="w",
+            )
+            block.pack(anchor="w", fill="x", pady=2)
+
+    ttk.Label(
+        parent,
+        text="ACCIÓN / SALIDA",
+        font=("Segoe UI", 10, "bold"),
+    ).pack(anchor="w", pady=(12, 5))
+    target = EQUIPMENT_LABELS.get(
+        (rule.action.space_code, rule.action.equipment_code),
+        rule.action.equipment_code,
+    )
+    action_card = tk.Label(
+        parent,
+        text=f"➜  {ACTION_LABELS[rule.action.command]}  ·  {target}",
+        background="#173754",
+        foreground="#bde8ff",
+        padx=10,
+        pady=8,
+        anchor="w",
+        font=("Segoe UI", 10, "bold"),
+    )
+    action_card.pack(fill="x", pady=(0, 6))
+    if result:
+        result_color = (
+            UI_COLORS["red"]
+            if "BLOQUEADA" in result or "Error" in result
+            else UI_COLORS["orange"]
+            if "No coincide" in result or "REQUIERE AUTORIZACION" in result
+            else UI_COLORS["green"]
+        )
+        ttk.Label(
+            parent,
+            text=result,
+            foreground=result_color,
+            font=("Segoe UI", 10, "bold"),
+        ).pack(anchor="w", pady=(5, 0))
+
+
 class RuleManagerFrame(ttk.Frame):
     def __init__(
         self,
         master: tk.Misc,
         scenarios: dict[str, dict[str, object]],
         rules_path: Path,
+        on_create: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(master, padding=12)
         self.scenarios = scenarios
         self.rules_path = rules_path
+        self.on_create_callback = on_create
         self.rules: list[Rule] = []
         self.visible_rules: list[Rule] = []
         self._create_layout()
@@ -342,7 +526,7 @@ class RuleManagerFrame(ttk.Frame):
         header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         ttk.Label(
             header,
-            text="Políticas del campus",
+            text="Reglas activas del campus",
             font=("Segoe UI", 17, "bold"),
         ).pack(side="left")
         ttk.Label(
@@ -439,7 +623,7 @@ class RuleManagerFrame(ttk.Frame):
         for rule in self.visible_rules:
             self.rule_list.insert(
                 "end",
-                f"{rule_title(rule.name)}  ·  {SPACE_LABELS[rule.action.space_code]}",
+                f"●  {rule_title(rule.name)}  ·  {SPACE_LABELS[rule.action.space_code]}",
             )
         selected_index = next(
             (index for index, rule in enumerate(self.visible_rules) if rule.name == old_selection),
@@ -481,52 +665,9 @@ class RuleManagerFrame(ttk.Frame):
             f"{EQUIPMENT_LABELS.get((rule.action.space_code, rule.action.equipment_code), 'Equipo')}",
         ).pack(anchor="w", pady=(0, 12))
 
-        groups_panel = ttk.Frame(self.details)
-        groups_panel.pack(fill="both", expand=True)
-        try:
-            groups = editable_groups(rule)
-        except ValueError as exc:
-            ttk.Label(groups_panel, text=str(exc), foreground="#b91c1c").pack(anchor="w")
-            return
-        for group_index, group in enumerate(groups):
-            if group_index:
-                ttk.Label(
-                    groups_panel,
-                    text="O BIEN",
-                    foreground="#b45309",
-                    font=("Segoe UI", 9, "bold"),
-                ).pack(anchor="w", pady=5)
-            card = tk.Frame(groups_panel, bg=UI_COLORS["raised"], padx=10, pady=8)
-            card.pack(fill="x", pady=3)
-            ttk.Label(
-                card,
-                text=f"Grupo {group_index + 1}  ·  deben cumplirse todos",
-                background=UI_COLORS["raised"],
-                foreground=UI_COLORS["muted"],
-                font=("Segoe UI", 9, "bold"),
-            ).pack(anchor="w", pady=(0, 5))
-            if not group:
-                ttk.Label(card, text="Sin condiciones adicionales.", background="#f1f5f9").pack(
-                    anchor="w"
-                )
-            for condition in group:
-                ttk.Label(
-                    card,
-                    text=self._condition_label(condition),
-                    background=UI_COLORS["input"],
-                    foreground=UI_COLORS["text"],
-                    padding=(8, 5),
-                ).pack(anchor="w", fill="x", pady=2)
-
-        action_card = tk.Frame(self.details, bg="#173754", padx=10, pady=8)
-        action_card.pack(fill="x", pady=(10, 5))
-        ttk.Label(
-            action_card,
-            text=f"ACCIÓN  ·  {ACTION_LABELS[rule.action.command]}",
-            background="#173754",
-            foreground="#8bd3ff",
-            font=("Segoe UI", 10, "bold"),
-        ).pack(anchor="w")
+        blocks_panel = ttk.Frame(self.details)
+        blocks_panel.pack(fill="both", expand=True)
+        render_rule_blocks(blocks_panel, rule)
 
         test_row = ttk.Frame(self.details)
         test_row.pack(fill="x", pady=(8, 0))
@@ -574,6 +715,9 @@ class RuleManagerFrame(ttk.Frame):
         return f"{prefix}{attribute} {operator} {value}"
 
     def create_rule(self) -> None:
+        if self.on_create_callback is not None:
+            self.on_create_callback()
+            return
         self._open_editor(None)
 
     def edit_selected(self) -> None:
@@ -653,26 +797,35 @@ class _RuleEditorDialog:
         manager: RuleManagerFrame,
         rule: Rule | None,
         on_save: Callable[[Rule, str | None], None],
+        embedded_parent: tk.Misc | None = None,
     ) -> None:
         self.manager = manager
         self.rule = rule
         self.on_save = on_save
         self.old_name = rule.name if rule else None
+        self.embedded = embedded_parent is not None
         self.groups: list[dict[str, object]] = []
-        self.window = tk.Toplevel(manager)
-        self.window.title("Crear política con bloques" if rule is None else "Editar política con bloques")
-        self.window.geometry("960x780")
-        self.window.minsize(720, 600)
-        self.window.configure(background=UI_COLORS["window"])
-        self.window.transient(manager.winfo_toplevel())
-        self.window.grab_set()
+        if embedded_parent is None:
+            self.window = tk.Toplevel(manager)
+            self.window.title(
+                "Crear política con bloques" if rule is None else "Editar política con bloques"
+            )
+            self.window.geometry("960x780")
+            self.window.minsize(720, 600)
+            self.window.configure(background=UI_COLORS["window"])
+            self.window.transient(manager.winfo_toplevel())
+            self.window.grab_set()
+        else:
+            self.window = ttk.Frame(embedded_parent)
+            self.window.pack(fill="both", expand=True)
 
         self._create_form()
         if rule:
             self._load_rule(rule)
         else:
-            self._add_group()
+            self.groups.append({"rows": []})
         self._render_groups()
+        self._update_validation_status()
 
     def _create_form(self) -> None:
         self.window.columnconfigure(0, weight=1)
@@ -760,6 +913,13 @@ class _RuleEditorDialog:
         effect_card.columnconfigure(0, weight=1)
         effect_card.columnconfigure(1, weight=1)
 
+        self.validation_var = tk.StringVar(value="Completa los datos para validar la regla.")
+        self.validation_label = ttk.Label(
+            footer,
+            textvariable=self.validation_var,
+            wraplength=850,
+        )
+        self.validation_label.pack(anchor="w", pady=(0, 8))
         controls = ttk.Frame(footer)
         controls.pack(fill="x")
         ttk.Button(
@@ -774,37 +934,80 @@ class _RuleEditorDialog:
             command=self._add_group,
             style="Primary.TButton",
         ).pack(side="left", padx=8)
-        ttk.Button(controls, text="Cancelar", command=self.window.destroy).pack(side="right")
-        ttk.Button(
+        ttk.Button(controls, text="Cancelar", command=self._cancel).pack(side="right")
+        self.save_button = ttk.Button(
             controls,
             text="Guardar regla",
             command=self._save,
             style="Save.TButton",
-        ).pack(side="right", padx=(0, 8))
+        )
+        self.save_button.pack(side="right", padx=(0, 8))
 
-        section_header = ttk.Label(
+        activator_header = ttk.Label(
             self.groups_frame,
-            text="CONDICIONES DE ACTIVACIÓN  ·  CUANDO",
+            text="ACTIVADORES / ENTRADAS",
             background=UI_COLORS["window"],
             foreground=UI_COLORS["text"],
             font=("Segoe UI", 11, "bold"),
         )
-        section_header.pack(anchor="w", pady=(0, 3))
+        activator_header.pack(anchor="w", pady=(0, 3))
         ttk.Label(
             self.groups_frame,
-            text="Añade criterios del espacio, los sensores y la energía. "
-            "Dentro de un grupo se cumplen todos (Y); entre grupos basta uno (O).",
+            text="Elige el espacio y agrega las fuentes de datos que activarán la regla. "
+            "Cada entrada tendrá su propia condición en el siguiente bloque.",
             background=UI_COLORS["window"],
             foreground=UI_COLORS["muted"],
             wraplength=800,
         ).pack(anchor="w", pady=(0, 8))
 
+        activator_controls = ttk.Frame(self.groups_frame)
+        activator_controls.pack(fill="x", pady=(0, 8))
+        self.activator_var = tk.StringVar(value=next(iter(ACTIVATOR_OPTIONS)))
+        self.activator_picker = ttk.Combobox(
+            activator_controls,
+            textvariable=self.activator_var,
+            values=list(ACTIVATOR_OPTIONS),
+            state="readonly",
+            width=34,
+        )
+        self.activator_picker.pack(side="left")
+        ttk.Button(
+            activator_controls,
+            text="＋ Añadir entrada",
+            command=self._add_activator,
+            style="Primary.TButton",
+        ).pack(side="left", padx=8)
+
+        self.activators_frame = tk.Frame(
+            self.groups_frame,
+            background=UI_COLORS["window"],
+        )
+        self.activators_frame.pack(fill="x", pady=(0, 10))
+        ttk.Label(
+            self.groups_frame,
+            text="CONDICIONES",
+            background=UI_COLORS["window"],
+            foreground=UI_COLORS["text"],
+            font=("Segoe UI", 11, "bold"),
+        ).pack(anchor="w", pady=(0, 3))
+        ttk.Label(
+            self.groups_frame,
+            text="Las condiciones verdes deben cumplirse. El separador gris Y combina "
+            "condiciones; O permite grupos alternativos.",
+            background=UI_COLORS["window"],
+            foreground=UI_COLORS["muted"],
+            wraplength=800,
+        ).pack(anchor="w", pady=(0, 8))
         self.groups_container = tk.Frame(
             self.groups_frame,
             background=UI_COLORS["window"],
         )
         self.groups_container.pack(fill="both", expand=True)
         self.space_picker.bind("<<ComboboxSelected>>", self._space_changed)
+        self.title_var.trace_add("write", self._update_validation_status)
+        self.space_var.trace_add("write", self._update_validation_status)
+        self.action_var.trace_add("write", self._update_validation_status)
+        self.equipment_var.trace_add("write", self._update_validation_status)
 
     def _load_rule(self, rule: Rule) -> None:
         self.title_var.set(rule_title(rule.name))
@@ -828,10 +1031,46 @@ class _RuleEditorDialog:
                         "negated": negated,
                     }
                 )
+            for occupancy_row in rows:
+                if occupancy_row["attribute"] != "ocupacion" or occupancy_row["value"] != "VACIO":
+                    continue
+                duration = next(
+                    (
+                        row
+                        for row in rows
+                        if row["attribute"] == "tiempoVacio"
+                        and row["operator"] == ">="
+                        and not row["negated"]
+                    ),
+                    None,
+                )
+                if duration is not None:
+                    occupancy_row["duration"] = duration["value"]
+                    rows.remove(duration)
+                    break
             self.groups.append({"rows": rows})
 
     def _space_changed(self, _event: tk.Event[tk.Misc] | None = None) -> None:
         self._update_equipment_choices()
+        self._render_activators()
+        self._update_validation_status()
+
+    def _add_activator(self) -> None:
+        attribute, value, operator = ACTIVATOR_OPTIONS[self.activator_var.get()]
+        if not self.groups:
+            self.groups.append({"rows": []})
+        rows = self.groups[-1]["rows"]
+        assert isinstance(rows, list)
+        rows.append(
+            {
+                "attribute": attribute,
+                "operator": operator,
+                "value": value,
+                "negated": False,
+                "duration": "",
+            }
+        )
+        self._render_groups()
 
     def _update_equipment_choices(self, selected_code: str | None = None) -> None:
         space = SPACE_NAMES.get(self.space_var.get())
@@ -842,18 +1081,7 @@ class _RuleEditorDialog:
         self.equipment_var.set(EQUIPMENT_LABELS.get((space, selected), ""))
 
     def _add_group(self) -> None:
-        self.groups.append(
-            {
-                "rows": [
-                    {
-                        "attribute": "ocupacion",
-                        "operator": "=",
-                        "value": "VACIO",
-                        "negated": False,
-                    }
-                ]
-            }
-        )
+        self.groups.append({"rows": []})
         if hasattr(self, "groups_frame"):
             self._render_groups()
 
@@ -868,7 +1096,7 @@ class _RuleEditorDialog:
             {
                 "attribute": "tiempoVacio",
                 "operator": ">=",
-                "value": 15,
+                "value": 900,
                 "negated": False,
             }
         )
@@ -877,15 +1105,18 @@ class _RuleEditorDialog:
     def _render_groups(self) -> None:
         for child in self.groups_container.winfo_children():
             child.destroy()
+        self._render_activators()
         for group_index, group in enumerate(self.groups):
             if group_index:
-                ttk.Label(
-                    self.groups_frame,
-                    text="O BIEN · basta con que se cumpla uno de los grupos",
-                    foreground=UI_COLORS["orange"],
-                    background=UI_COLORS["window"],
-                    font=("Segoe UI", 9, "bold"),
-                ).pack(anchor="w", pady=(10, 4))
+                tk.Label(
+                    self.groups_container,
+                    text="O  ·  BASTA CON UN GRUPO",
+                    background=UI_COLORS["separator"],
+                    foreground="#ffffff",
+                    padx=8,
+                    pady=4,
+                    font=("Segoe UI", 8, "bold"),
+                ).pack(anchor="w", fill="x", pady=4)
             card = tk.Frame(
                 self.groups_container,
                 background=UI_COLORS["surface"],
@@ -912,15 +1143,24 @@ class _RuleEditorDialog:
             ).pack(side="right")
             rows = group["rows"]
             assert isinstance(rows, list)
+            if not rows:
+                ttk.Label(
+                    card,
+                    text="Añade un activador para definir las condiciones de este grupo.",
+                    background=UI_COLORS["surface"],
+                    foreground=UI_COLORS["muted"],
+                ).pack(anchor="w", pady=4)
             for row_index, row in enumerate(rows):
                 if row_index:
-                    ttk.Label(
+                    tk.Label(
                         card,
-                        text="Y TAMBIÉN",
-                        background=UI_COLORS["surface"],
-                        foreground=UI_COLORS["muted"],
+                        text="Y",
+                        background=UI_COLORS["separator"],
+                        foreground="#ffffff",
+                        padx=8,
+                        pady=2,
                         font=("Segoe UI", 8, "bold"),
-                    ).pack(anchor="w", pady=(4, 1))
+                    ).pack(anchor="w", fill="x", pady=(5, 3))
                 self._render_condition_row(card, group_index, row_index, row)
             ttk.Button(
                 card,
@@ -929,6 +1169,34 @@ class _RuleEditorDialog:
             ).pack(anchor="w", pady=(7, 0))
         self.groups_frame.update_idletasks()
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        self._update_validation_status()
+
+    def _render_activators(self) -> None:
+        for child in self.activators_frame.winfo_children():
+            child.destroy()
+        space = SPACE_NAMES.get(self.space_var.get())
+        sources = [("Espacio", SPACE_LABELS.get(space, "Selecciona un espacio"))]
+        seen = {"Espacio"}
+        for group in self.groups:
+            rows = group["rows"]
+            assert isinstance(rows, list)
+            for row in rows:
+                attribute = str(row.get("attribute", ""))
+                source = ACTIVATOR_LABELS.get(attribute)
+                if source and source not in seen:
+                    sources.append((source, ""))
+                    seen.add(source)
+        for source, value in sources:
+            text = f"▸ {source}: {value}" if value else f"▸ {source}"
+            tk.Label(
+                self.activators_frame,
+                text=text,
+                background=UI_COLORS["activator"],
+                foreground="#e7f4ff",
+                padx=10,
+                pady=6,
+                font=("Segoe UI", 9, "bold"),
+            ).pack(side="left", padx=(0, 6), pady=2)
 
     def _render_condition_row(
         self,
@@ -937,7 +1205,7 @@ class _RuleEditorDialog:
         row_index: int,
         row: dict[str, object],
     ) -> None:
-        line = tk.Frame(parent, background=UI_COLORS["input"], padx=6, pady=6)
+        line = tk.Frame(parent, background=UI_COLORS["condition"], padx=6, pady=6)
         line.pack(fill="x")
         negated = tk.BooleanVar(value=bool(row["negated"]))
         ttk.Checkbutton(line, text="NO", variable=negated).pack(side="left", padx=(0, 5))
@@ -966,6 +1234,7 @@ class _RuleEditorDialog:
         value_frame.pack(side="left", padx=3)
         value_var = tk.StringVar()
         value_widget: ttk.Widget
+        duration_frame = ttk.Frame(parent)
 
         def set_value_widget(*_args: object) -> None:
             nonlocal value_widget
@@ -1001,7 +1270,57 @@ class _RuleEditorDialog:
                     width=20,
                 )
                 value_widget._dsl_values = inverse  # type: ignore[attr-defined]
-            value_widget.pack()
+            value_widget.pack(side="left")
+            for child in duration_frame.winfo_children():
+                child.destroy()
+            duration_frame.pack_forget()
+            if (
+                attribute == "ocupacion"
+                and operator_var.get() == "="
+                and value_var.get() == VALUE_LABELS["VACIO"]
+            ):
+                duration_label = ttk.Label(
+                    duration_frame,
+                    text="Mantenerse vacía durante (segundos):",
+                    foreground=UI_COLORS["muted"],
+                )
+                duration_label.pack(side="left", padx=(8, 4))
+                duration_var = tk.StringVar(
+                    value="" if row.get("duration") is None else str(row["duration"])
+                )
+                duration_entry = ttk.Entry(
+                    duration_frame,
+                    textvariable=duration_var,
+                    width=10,
+                )
+                duration_entry.pack(side="left")
+                ttk.Label(
+                    duration_frame,
+                    text="segundos",
+                    foreground=UI_COLORS["muted"],
+                ).pack(side="left", padx=(4, 0))
+                duration_var.trace_add(
+                    "write",
+                    lambda *_args, state=row, var=duration_var: (
+                        state.update(duration=var.get()),
+                        self._update_validation_status(),
+                    ),
+                )
+                row["duration_var"] = duration_var
+                row["duration_entry"] = duration_entry
+                duration_frame.pack(anchor="w", fill="x", pady=(4, 0))
+            if attribute == "tiempoVacio":
+                ttk.Label(
+                    value_frame,
+                    text="segundos",
+                    foreground=UI_COLORS["muted"],
+                ).pack(side="left", padx=(5, 0))
+            elif attribute == "demandaNeta":
+                ttk.Label(
+                    value_frame,
+                    text="kW",
+                    foreground=UI_COLORS["muted"],
+                ).pack(side="left", padx=(5, 0))
             row["attribute"] = attribute
             row["attribute_var"] = attribute_var
             row["operator_var"] = operator_var
@@ -1020,8 +1339,19 @@ class _RuleEditorDialog:
                 else:
                     choices = getattr(value_widget, "_dsl_values", {})
                     row["value"] = choices.get(value_var.get(), row["value"])
+                self._update_validation_status()
 
             value_var.trace_add("write", remember_value)
+            if attribute == "ocupacion" and isinstance(value_widget, ttk.Combobox):
+                value_widget.bind(
+                    "<<ComboboxSelected>>",
+                    lambda _event: self._condition_value_selected(
+                        attribute,
+                        value_var,
+                        operator_var,
+                        row,
+                    ),
+                )
 
         def attribute_changed(_event: tk.Event[tk.Misc]) -> None:
             selected_attribute = next(
@@ -1035,11 +1365,33 @@ class _RuleEditorDialog:
                 else sorted(ENUM_VALUES[selected_attribute])[0]
             )
             set_value_widget()
+            self._render_activators()
+            self._update_validation_status()
 
         attribute_picker.bind("<<ComboboxSelected>>", attribute_changed)
+        operator_picker.bind(
+            "<<ComboboxSelected>>",
+            lambda _event: self._condition_operator_selected(
+                attribute_var,
+                operator_var,
+                row,
+            ),
+        )
         row["attribute_picker"] = attribute_picker
-        operator_var.trace_add("write", lambda *_args: row.update(operator=operator_var.get()))
-        negated.trace_add("write", lambda *_args: row.update(negated=negated.get()))
+        operator_var.trace_add(
+            "write",
+            lambda *_args: (
+                row.update(operator=operator_var.get()),
+                self._update_validation_status(),
+            ),
+        )
+        negated.trace_add(
+            "write",
+            lambda *_args: (
+                row.update(negated=negated.get()),
+                self._update_validation_status(),
+            ),
+        )
         set_value_widget()
         ttk.Button(
             line,
@@ -1102,25 +1454,154 @@ class _RuleEditorDialog:
                 conditions.append(
                     Negation(comparison) if negated_var.get() else comparison
                 )
+                if (
+                    attribute == "ocupacion"
+                    and operator_var.get() == "="
+                    and raw_value == "VACIO"
+                    and not negated_var.get()
+                ):
+                    duration_var = row.get("duration_var")
+                    duration_value = (
+                        duration_var.get()
+                        if isinstance(duration_var, tk.StringVar)
+                        else row.get("duration", "")
+                    )
+                    try:
+                        duration_seconds = int(str(duration_value))
+                    except (TypeError, ValueError) as exc:
+                        raise ValueError(
+                            "Indica cuántos segundos debe permanecer vacío el espacio."
+                        ) from exc
+                    conditions.append(
+                        Comparison("tiempoVacio", ">=", duration_seconds)
+                    )
             result.append(conditions)
         return result
 
-    def _save(self) -> None:
-        title = self.title_var.get().strip()
-        if not title:
-            messagebox.showwarning("Falta el nombre", "Escribe un nombre para la regla.", parent=self.window)
+    def _condition_value_selected(
+        self,
+        attribute: str,
+        value_var: tk.StringVar,
+        operator_var: tk.StringVar,
+        row: dict[str, object],
+    ) -> None:
+        value_widget = row.get("value_widget")
+        value_map = getattr(value_widget, "_dsl_values", {})
+        row["value"] = value_map.get(value_var.get(), value_var.get())
+        row["operator"] = operator_var.get()
+        if attribute == "ocupacion":
+            self._render_groups()
+        self._update_validation_status()
+
+    def _condition_operator_selected(
+        self,
+        attribute_var: tk.StringVar,
+        operator_var: tk.StringVar,
+        row: dict[str, object],
+    ) -> None:
+        row["operator"] = operator_var.get()
+        if attribute_var.get() == ATTRIBUTE_LABELS["ocupacion"]:
+            self._render_groups()
+        self._update_validation_status()
+
+    def _update_validation_status(self, *_args: object) -> None:
+        if not hasattr(self, "validation_label"):
             return
+        title = self.title_var.get().strip()
+        space = SPACE_NAMES.get(self.space_var.get())
+        command = ACTION_NAMES.get(self.action_var.get())
+        equipment_code = next(
+            (
+                code
+                for code in EQUIPMENT_BY_SPACE.get(space, set())
+                if EQUIPMENT_LABELS.get((space, code)) == self.equipment_var.get()
+            ),
+            None,
+        )
+        if not title or space is None or command is None or equipment_code is None:
+            self._set_validation_status(
+                "Completa el nombre, el espacio y la acción para validar.",
+                UI_COLORS["orange"],
+                False,
+            )
+            return
+        name = self.old_name or rule_slug(title)
+        if any(
+            existing.name == name and existing.name != self.old_name
+            for existing in self.manager.rules
+        ):
+            self._set_validation_status(
+                f"Ya existe una regla con el identificador «{name}».",
+                UI_COLORS["red"],
+                False,
+            )
+            return
+        try:
+            groups = self._read_groups()
+            if not any(groups):
+                raise ValueError("Agrega al menos una condición.")
+            candidate = build_rule(name, space, groups, command, equipment_code)
+            validate_rules(
+                [
+                    existing
+                    for existing in self.manager.rules
+                    if existing.name != self.old_name
+                ]
+                + [candidate]
+            )
+            parse_program(serialize_rule(candidate))
+        except (ValueError, DSLValidationError) as exc:
+            self._set_validation_status(
+                f"⚠ {exc}",
+                UI_COLORS["red"],
+                False,
+            )
+            return
+        self._set_validation_status(
+            "✓ La lógica es válida y no contradice las reglas fundamentales del sistema.",
+            UI_COLORS["green"],
+            True,
+        )
+
+    def _set_validation_status(self, message: str, color: str, valid: bool) -> None:
+        self.is_valid = valid
+        self.validation_var.set(message)
+        self.validation_label.configure(foreground=color)
+        if valid:
+            self.save_button.state(["!disabled"])
+        else:
+            self.save_button.state(["disabled"])
+
+    def _cancel(self) -> None:
+        if self.embedded:
+            self._reset()
+        else:
+            self.window.destroy()
+
+    def _reset(self) -> None:
+        self.old_name = None
+        self.rule = None
+        self.title_entry.configure(state="normal")
+        self.title_var.set("")
+        self.space_var.set("")
+        self.action_var.set("")
+        self.equipment_var.set("")
+        self.groups.clear()
+        self._add_group()
+        self._update_validation_status()
+
+    def _save(self) -> None:
+        self._update_validation_status()
+        if not self.is_valid:
+            return
+        title = self.title_var.get().strip()
         if self.old_name is None:
             name = rule_slug(title)
         else:
             name = self.old_name
         space = SPACE_NAMES.get(self.space_var.get())
-        if space not in SPACE_CODES:
-            messagebox.showwarning("Falta el espacio", "Selecciona un espacio.", parent=self.window)
-            return
         command = ACTION_NAMES.get(self.action_var.get())
-        if command is None:
-            messagebox.showwarning("Falta la acción", "Selecciona una acción.", parent=self.window)
+        if space is None or command is None:
             return
         equipment_choices = EQUIPMENT_BY_SPACE[space]
         equipment_code = next(
@@ -1132,7 +1613,6 @@ class _RuleEditorDialog:
             None,
         )
         if equipment_code is None:
-            messagebox.showwarning("Falta el equipo", "Selecciona un equipo objetivo.", parent=self.window)
             return
         try:
             groups = self._read_groups()
@@ -1149,7 +1629,10 @@ class _RuleEditorDialog:
         except (ValueError, OSError, DSLValidationError) as exc:
             messagebox.showerror("Revisa la regla", str(exc), parent=self.window)
             return
-        self.window.destroy()
+        if self.embedded:
+            self._reset()
+        else:
+            self.window.destroy()
 
     def _update_scroll_region(self, _event: tk.Event[tk.Misc] | None = None) -> None:
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
